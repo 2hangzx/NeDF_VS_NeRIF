@@ -109,8 +109,8 @@ strict_control_repeat_002
 
 1. 修改两版正式包入口；
 2. 新建 profile JSON；
-3. 让 profile 完整声明训练、评价网格、参数量、预算与 extension policy；训练前
-   验证器会动态读取该批次的 `declared_profile.json`，无需修改验证器源码；
+3. 让 profile 完整声明训练、评价网格、预算与 extension policy；参数量由验证器
+   根据网络结构自动计算并报告，无需写入 profile；
 4. 重新生成包校验和；
 5. 使用新批次号，并在 `--note` 写明差异。
 

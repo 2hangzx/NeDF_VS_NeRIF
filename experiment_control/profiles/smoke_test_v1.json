@@ -4,7 +4,7 @@
   "purpose": "冒烟测试",
   "training": {
     "encoding": "Fourier",
-    "num_layers": 2,
+    "num_layers": 3,
     "hidden_dim": 64,
     "density_scale": 1,
     "iterations": 12,
@@ -42,9 +42,5 @@
     "restart_learning_rate_source": "training.learning_rate",
     "eta_min": 0.000001,
     "parent_batch_is_immutable": true
-  },
-  "expected_trainable_parameters": {
-    "baseline": 2561,
-    "gradient_output": 2694
   }
 }

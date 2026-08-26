@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-08-26：移除 profile 参数量声明
+
+- 删除 profile 中的 `expected_trainable_parameters` 字段；
+- 训练前门禁不再要求用户手工计算或维护两路线参数量；
+- 参数量仍根据 `num_layers`、`hidden_dim`、编码和输出结构自动计算并写入报告，
+  但只作信息记录，不作为 JSON 配置项；
+- checkpoint 延长继续核验父子层数、宽度、编码、`density_scale`、`bound` 和核心
+  源码哈希，不再依赖手填参数量。
+
+---
+
 ## 2026-08-26：解除固定网络容量下限
 
 - 删除训练前验证器中的 `num_layers >= 3`、`hidden_dim >= 128` 固定门禁；

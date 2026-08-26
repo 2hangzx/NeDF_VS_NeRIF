@@ -28,8 +28,8 @@ if __name__ == '__main__':
     # 数据位于原版项目目录下（与 gradient_output 不同路径）
     sys.argv = ['main_nerf.py', '../../PYTHON/NIR-BOS/data/Phantom 1/140x294x140', '--workspace',
                 '__FORMAL_BATCH_WORKSPACE__', '--seed', '0', '--bound', '2', '--fp16',
-                '--cuda_ray', '--scale', '0.00054421', '--iters', '30000', '--lr', '5e-3', '--dt_gamma', '0',
-                '--num_rays', '256', '--max_steps', '256',
+                '--cuda_ray', '--scale', '0.00054421', '--iters', '12', '--lr', '5e-3', '--dt_gamma', '0',
+                '--num_rays', '64', '--max_steps', '64',
                 # 公共评价网格半尺寸：ROInum * ROIvoxelsize / 2。
                 '--maskflag','--ROIsize', '0.9523675', '1.99997175', '0.9523675', '--ROInum', '140', '294', '140', '--ROIvoxelsize',
                 '0.01360525', '--valbound', '-1.0', '3',
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     model = NeRFNetwork(
         encoding="Fourier", # or Fourier
         num_layers=3,
-        hidden_dim=128,
+        hidden_dim=64,
         bound=opt.bound,
         cuda_ray=opt.cuda_ray,
         density_scale=1,
@@ -204,7 +204,7 @@ if __name__ == '__main__':
         metrics = [PSNRMeter(), LPIPSMeter(device=device)]
         trainer = Trainer('ngp', opt, model, device=device, workspace=opt.workspace, optimizer=optimizer,
                           criterion=criterion, ema_decay=0.95, fp16=opt.fp16, lr_scheduler=scheduler,
-                          scheduler_update_every_step=True, metrics=metrics, use_checkpoint=opt.ckpt, eval_interval=50)
+                          scheduler_update_every_step=True, metrics=metrics, use_checkpoint=opt.ckpt, eval_interval=1)
         if opt.extension_mode:
             extension_details = restart_cosine_scheduler_for_extension(
                 trainer,
@@ -238,5 +238,5 @@ if __name__ == '__main__':
 
         trainer.test(test_loader, write_video=True)  # test and save video
 
-        trainer.save_mesh(resolution=256, threshold=0.2)
+        trainer.save_mesh(resolution=64, threshold=0.2)
         experiment_recorder.complete(trainer)

@@ -129,8 +129,9 @@ python validate_experiment_logging.py
 Fourier MLP 主干、30000 iterations、5e-3 学习率、256 rays、256 max_steps、
 seed 0 和 scratch checkpoint。两路写入各自的新 workspace，不会覆盖旧结果。
 3×128 仅是该 profile 的声明，不是验证器的网络容量下限；例如 2×64 smoke profile
-同样可以通过，只要两版入口、profile 与参数量声明一致。代码中的 `num_layers`
-包含输出层，因而 2×64 表示一个 64 神经元隐藏层。
+同样可以通过，只要两版入口与 profile 的结构声明一致。参数量由验证器自动计算，
+无需写入 profile。代码中的 `num_layers` 包含输出层，因而 2×64 表示一个 64
+神经元隐藏层。
 
 正式训练前必须运行：
 

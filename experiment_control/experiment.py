@@ -241,21 +241,13 @@ def verify_extension_source(
             "预算延长只允许改变 iterations 和第二阶段 learning_rate；"
             "以下父/子参数不一致: " + "; ".join(option_mismatches))
 
-    expected_model = child_profile.get("expected_trainable_parameters", {})
     source_model = parent_manifest.get("model", {})
-    expected_count = expected_model.get(route)
     model_mismatches = []
     for key in ("num_layers", "hidden_dim", "encoding", "density_scale", "bound"):
         expected = training.get(key)
         if expected is not None and source_model.get(key) != expected:
             model_mismatches.append(
                 f"{key}: parent={source_model.get(key)!r}, child={expected!r}")
-    if (expected_count is not None
-            and source_model.get("trainable_parameter_count") != expected_count):
-        model_mismatches.append(
-            "trainable_parameter_count: "
-            f"parent={source_model.get('trainable_parameter_count')!r}, "
-            f"child={expected_count!r}")
     if model_mismatches:
         raise ValueError(
             "父 checkpoint 与子批次网络结构不兼容: "

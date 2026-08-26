@@ -144,18 +144,12 @@ claudedo/gradient_output/main_BOS.py
    max_ray_samples  = iterations × num_rays × max_steps
    ```
 
-4. 如果改变网络结构或编码，重新确认并更新：
-
-   ```text
-   expected_trainable_parameters.baseline
-   expected_trainable_parameters.gradient_output
-   ```
-
-5. 将同一组训练参数同步写入两份 `main_BOS.py`。严格对照实验要求两路除输出结构和
+4. 将同一组训练参数同步写入两份 `main_BOS.py`。严格对照实验要求两路除输出结构和
    研究变量外保持一致。
 
 profile 是实验的声明，`main_BOS.py` 是实际执行配置。两者必须一致；只修改其中一处
-会导致 `preflight` 失败。
+会导致 `preflight` 失败。参数量由验证器根据网络结构自动计算并写入报告，profile
+不需要设置 `expected_trainable_parameters`。
 
 ## 五、参数或源码变化后更新完整性基线
 
