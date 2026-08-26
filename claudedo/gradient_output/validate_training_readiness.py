@@ -282,9 +282,6 @@ def main() -> None:
             and declared_profile.get("expected_trainable_parameters", {}).get(
                 "gradient_output")
             == gradient["trainable_parameter_count_expected"]),
-        "network_capacity_is_raised": (
-            baseline["model"]["num_layers"] >= 3
-            and baseline["model"]["hidden_dim"] >= 128),
         "workspaces_are_distinct": (
             baseline["workspace_resolved"] != gradient["workspace_resolved"]),
         "batch_profile_matches_declared_profile": (

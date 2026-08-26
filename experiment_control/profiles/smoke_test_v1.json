@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "profile_id": "smoke_test_v1",
+  "purpose": "冒烟测试",
+  "training": {
+    "encoding": "Fourier",
+    "num_layers": 2,
+    "hidden_dim": 64,
+    "density_scale": 1,
+    "iterations": 12,
+    "learning_rate": 0.005,
+    "num_rays": 64,
+    "max_steps": 64,
+    "seed": 0,
+    "bound": 2.0,
+    "scale": 0.00054421,
+    "dt_gamma": 0.0,
+    "checkpoint": "scratch",
+    "fp16": true,
+    "cuda_ray": true,
+    "maskflag": true
+  },
+  "evaluation_grid": {
+    "roi_size": [0.9523675, 1.99997175, 0.9523675],
+    "roi_num": [140, 294, 140],
+    "roi_voxel_size": 0.01360525,
+    "valbound": [-1.0, 3.0]
+  },
+  "nominal_budget": {
+    "total_rays": 768,
+    "max_ray_samples": 49152
+  },
+  "resume_policy": {
+    "initial_launch": "scratch",
+    "allowed_scope": "same batch and same route only",
+    "full_checkpoint_pattern": "ngp_epXXXX.pth",
+    "resume_preserves_declared_total_iterations": true
+  },
+  "extension_policy": {
+    "mode": "cosine_restart_over_remaining_iterations",
+    "child_batch_required": true,
+    "restart_learning_rate_source": "training.learning_rate",
+    "eta_min": 0.000001,
+    "parent_batch_is_immutable": true
+  },
+  "expected_trainable_parameters": {
+    "baseline": 2561,
+    "gradient_output": 2694
+  }
+}

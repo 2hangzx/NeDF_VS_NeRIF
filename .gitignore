@@ -1,0 +1,22 @@
+# Local experiment batches. Keep only the usage note in version control.
+experiments/*
+!experiments/README.md
+
+# Python caches and machine-specific native builds.
+**/__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.obj
+.pytest_cache/
+**/build/
+**/build_temp/
+**/dist/
+
+# Training/runtime artifacts outside the centralized batch tree.
+**/result/
+**/checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.log

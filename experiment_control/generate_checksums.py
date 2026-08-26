@@ -17,7 +17,9 @@ MUTABLE_PREFIXES = (
     "experiments/",
 )
 MUTABLE_EXACT = {"MATLAB/mex_CUDA_win64.xml"}
-FORBIDDEN_PARTS = {"__pycache__", "build", "build_temp", "dist", "result"}
+FORBIDDEN_PARTS = {
+    ".git", "__pycache__", "build", "build_temp", "dist", "result",
+}
 # MATLAB 随包携带的 MEX 调试符号也属于首次搬运内容，因此不排除 .pdb。
 # Python 源码树中的旧设备 .pdb 已在组包时移除。
 FORBIDDEN_SUFFIXES = {".pyc", ".pyd", ".so", ".obj"}

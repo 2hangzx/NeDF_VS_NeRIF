@@ -34,6 +34,12 @@
 | scheduler | CosineAnnealingLR, eta_min=1e-6 | 相同 |
 | checkpoint | scratch | scratch |
 
+这里的 3×128 是 `strict_control_v1` 自身声明的实验配置，不是验证器施加的全局容量
+下限。其他 profile 可以声明 2×64 等结构，只要两版入口硬编码、profile 和预期参数
+量一致。按当前 `network.py` 的计数语义，`num_layers` 包含输出层，因此
+`num_layers=2, hidden_dim=64` 实际是一个 64 神经元隐藏层加一个输出层；若要表达
+两个 64 神经元隐藏层，应使用 `num_layers=3, hidden_dim=64`。
+
 参数量的小差异只来自方法定义所必需的输出头：基线输出 1 个标量，梯度版输出
 3 个分量并带 3 个可训练 scale；隐藏层数和宽度完全一致。名义训练预算为
 7,680,000 条 rays、最多 1,966,080,000 个 ray samples。occupancy 跳过和提前终止

@@ -14,7 +14,9 @@
 - MATLAB、Common、两版 Python、CUDA 源码和控制脚本必需路径齐全；
 - 交付源码树无旧设备 `.pyd`、`.pyc`、`build/`、`result/` 等产物；
 - 公共比较网格验证：10/10 通过；
-- 两路线批次声明、训练参数、checkpoint 恢复、预算延长与路径门禁：33/33 通过；
+- 两路线批次声明、训练参数、checkpoint 恢复、预算延长与路径门禁：32/32 通过；
+- 网络容量不设固定下限；`num_layers`、`hidden_dim` 及参数量完全以批次 profile
+  声明为准，2×64 smoke profile 与 3×128 strict profile 均使用同一套一致性门禁；
 - 实验日志与结果清单自检：13/13 通过；
 - 折射率梯度计算与比较数学自检通过；
 - 中央控制器完整 `preflight` 通过并正确写入批次状态；

@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-08-26：解除固定网络容量下限
+
+- 删除训练前验证器中的 `num_layers >= 3`、`hidden_dim >= 128` 固定门禁；
+- 网络结构现在完全以批次 `declared_profile.json` 为权威，入口硬编码与 profile
+  仍须逐项一致；
+- 保留按结构计算并核对两路线参数量的检查，因此不会放宽未声明或填错结构；
+- `strict_control_v1` 仍由其 profile 强制为 3×128，`smoke_test_v1` 可合法声明
+  原始实现语义下的 2×64（一个 64 神经元隐藏层）；
+- 修正 smoke profile 的预期参数量：baseline 2561、gradient_output 2694。
+
+---
+
 ## 2026-08-25：已完成训练预算的受控跨批次延长
 
 - 新增 `extend-baseline`、`extend-gradient`：从已完成父批次的同路线完整

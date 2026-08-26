@@ -6,13 +6,13 @@
   "source_stage_checksums_sha256": "5761387f453db94dd42a6b82c9062bd1e7ef542cc455e054a5ffe68199f19443",
   "validated_profile": "strict_control_v1",
   "initial_content": {
-    "transfer_content_files_before_checksum_files": 337,
-    "transfer_content_size_bytes_before_checksum_files": 233308155,
+    "transfer_content_files_before_checksum_files": 339,
+    "transfer_content_size_bytes_before_checksum_files": 233316871,
     "matlab_files": 154,
     "common_files": 43,
     "baseline_tree_files": 92,
     "gradient_tree_files": 31,
-    "experiment_control_files": 8,
+    "experiment_control_files": 9,
     "docs_files": 4
   },
   "portable_layout": true,
@@ -24,7 +24,9 @@
     "experiment_control manages create/preflight/train/resume/extend/compare/status lifecycle",
     "resume restores only full checkpoints from the same batch and route",
     "extend loads a completed parent-route checkpoint into a new child batch and restarts cosine scheduling over the remaining declared budget",
-    "training readiness is validated against each batch declared_profile while training parameters remain hardcoded"
+    "training readiness is validated against each batch declared_profile while training parameters remain hardcoded",
+    "network capacity has no global minimum; layer count, width, and parameter counts are governed by each declared profile",
+    "Git repository metadata is intentionally excluded from reproducibility checksums"
   ],
   "included_roots": [
     "MATLAB",
