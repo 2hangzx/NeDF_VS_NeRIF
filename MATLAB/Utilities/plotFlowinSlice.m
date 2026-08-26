@@ -1,0 +1,241 @@
+function [fh] = plotFlowinSlice(flow,varargin)
+% PLOTFlow plots a 3D flow in slices
+%   PLOFlow(flow) plots 3D flow looping thourgh X axis (first
+%   dimension)
+%   PLOTFlow(flow,OPT,VAL,...) uses options and values for plotting. The
+%   possible options in OPT are:
+%
+%   'Step':     Sets the step size between slice and slice. Step is 1 by
+%               default.
+%   
+%   'Dim':      Sets the dimensions in which the function iterates trhough.
+%               Default is 1 or 'X', possibilities are 2,3 or 'Y','Z' 
+%               respectively. 
+%   
+%   'Savegif':  With an string in VAL, saves the flow as .gif with
+%               VAL as filename
+%   'Colormap': Sets the colormap. Possible values for VAL are the names of
+%               the stadard MATLAB colormaps, the names in the perceptually 
+%               uniform colormaps tool or a custom colormap, being this last 
+%               one a 3xN matrix. Default is GRAY
+%   'Clims':    a 2x1 matrix setting the upper and lower limits of the
+%               colors. The default computes the lower and upper percentile
+%               of data, in 1% and 99% and sets the limits to that.
+%   'Slice'     Plots a single slice of the data. Overwrittes Step.
+%--------------------------------------------------------------------------
+%--------------------------------------------------------------------------
+% This file is part of the BOSLAB Toolbox
+% 
+% It is slightly modified from TIGRE Toolbox
+%
+% Copyright (c) 2015, University of Bath and 
+%                     CERN-European Organization for Nuclear Research
+%                     All rights reserved.
+%
+% License:            Open Source under BSD. 
+%                     See the full license at
+%                     https://github.com/CERN/TIGRE/blob/master/LICENSE
+%
+% Contact:            tigre.toolbox@gmail.com
+% Codes:              https://github.com/CERN/TIGRE/
+% Coded by:           Ander Biguri
+%--------------------------------------------------------------------------
+%% Parse inputs
+
+opts=     {'step','dim','savegif','colormap','clims','slice','figure_flag'};
+defaults= [   1  ,  1  ,    1    ,    1     ,   1 , 1, 1];
+
+% Check inputs
+nVarargs = length(varargin);
+if mod(nVarargs,2)
+    error('BOSLAB:plotFlow:InvalidInput','Invalid number of inputs')
+end
+
+% check if option has been passed as input
+for ii=1:2:nVarargs
+    ind=find(ismember(opts,lower(varargin{ii})));
+    if ~isempty(ind)
+       defaults(ind)=0; 
+    else
+       error('BOSLAB:plotFlow:InvalidInput',['Optional parameter "' varargin{ii} '" does not exist' ]); 
+    end
+end
+
+ninput=1;
+for ii=1:length(opts)
+    opt=opts{ii};
+    default=defaults(ii);
+    % if one option isnot default, then extranc value from input
+    if default==0
+        ind=double.empty(0,1);jj=1;
+        while isempty(ind)
+            ind=find(isequal(opt,lower(varargin{jj})));
+            jj=jj+1;
+        end
+        if isempty(ind)
+           error('BOSLAB:plotFlows:InvalidInput',['Optional parameter "' varargin{jj} '" does not exist' ]); 
+        end
+        val=varargin{jj};
+    end
+    
+    switch opt
+% % % % % %         %Step 
+        case 'step'
+            if default
+                steps=1;
+            else
+                if ~isnumeric(val)
+                    error('BOSLAB:plotFlows:InvalidInput','Invalid step')
+                end
+                steps=val;
+            end
+% % % % % %         % Plot single slice
+         case 'slice'
+            if default
+                slice=0;
+            else
+                slice=val;
+            end
+
+% % % % % %         % iterate trhoug what dim?
+        case 'dim'
+            if default
+                crossect=3;
+            else
+                if ~ischar(val)
+                    error('BOSLAB:plotFlows:InvalidInput','Invalid Dim')
+                end
+                
+                if lower(val)=='z'
+                    crossect=3;
+                end
+                if lower(val)=='y'
+                    crossect=2;
+                end
+                if lower(val)=='x'
+                    crossect=1;
+                end
+            end
+            
+% % % % % % %         % do you want to save result as gif?
+        case 'savegif'
+            if default
+                savegif=0;
+            else
+               savegif=1;
+               if ~ischar(val)
+                   error('BOSLAB:plotFlows:InvalidInput','filename is not character')
+               end
+               filename=val;
+            end
+% % % % % %         % Colormap choice
+        case 'colormap'
+            if default
+                cmap='gray';
+            else
+                
+                if ~isnumeric(val)  
+                    % check if it is from perceptually uniform colormaps.
+                    if ismember(val,{'magma','viridis','plasma','inferno'})
+                        cmap=eval([val,'()']);
+                    else
+                        cmap=val;
+                    end                   
+                else
+                    % if it is a custom colormap
+                    if size(val,2)~=3
+                        error('BOSLAB:plotFlows:InvalidInput','Invalid size of colormap')
+                    end
+                    cmap=val;
+                end
+            end
+% % % % % %         % Limits of the colors
+        case 'clims'
+            if default                
+                    climits=prctile(double(flow(:)),[1 99]);
+            else
+                if min(size(val))==1 && max(size(val))==2
+                    climits=val;
+                else
+                    error('BOSLAB:plotFlows:InvalidInput','Invalid size of Clims')
+                end
+            end
+  % % % % % %         % figure flag
+        case 'figure_flag'
+            if default                
+                figure_flag = 1;
+            else
+                figure_flag = val;
+            end          
+        otherwise
+          error('BOSLAB:plotFlows:InvalidInput',['Invalid input name:', num2str(opt),'\n No such option in plotFlow()']);
+    end
+end
+
+
+
+%% Do the plotting!
+if figure_flag
+    fh=figure();
+else
+    fh = gcf;
+end
+
+if slice
+    list=slice;
+else 
+    list=1:steps:size(flow,crossect);
+end
+for ii=list
+    
+    if crossect==1
+      imagesc(squeeze(flow(ii,:,:))); 
+    else if crossect==2
+             imagesc(squeeze(flow(:,ii,:)).');
+        else
+             imagesc(squeeze(flow(:,:,ii)).');
+        end
+    end
+    axis image; 
+    axis equal; 
+    
+    colormap(cmap); 
+    colorbar; 
+    caxis([climits(1),climits(2)]);
+    set(gca,'XTick',[]);
+    set(gca,'YTick',[]);
+    set(gca,'YDir','reverse');%'normal'
+    
+    
+    if crossect==3 
+        xlabel('->X');
+        ylabel('->Y');
+%         set(gca,'YDir','reverse');
+        title(['Camera to Flow direction->Z : ',num2str(ii)]);
+    end
+     if crossect==2 
+        xlabel('->X');
+        ylabel('->Z');
+        title(['Bottom to top ->Y : ',num2str(ii)]);
+    end
+    if crossect==1 
+        xlabel('->Z');
+        ylabel('->Y');
+        set(gca,'YDir','reverse');
+        title(['Left to Rigth direction->X : ',num2str(ii)]);
+    end
+    drawnow update 
+    pause(0.01)
+    if savegif
+        
+      frame = getframe(fh);
+      im = frame2im(frame);
+      [imind,cm] = rgb2ind(im,256);
+      if ii == 1
+          imwrite(imind,cm,filename,'gif', 'Loopcount',inf);
+      else
+          imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',0.1);
+      end
+    end
+end
+

@@ -1,0 +1,496 @@
+%--------------------------------------------------------------------------
+% BOSLAB Toolbox to generate synthetic data 
+%
+% This function generate synthetic data for neural implicit reconstrucion 
+% of BOS in python.
+%
+%--------------------------------------------------------------------------
+% This file is part of the BOSLAB Toolbox
+%
+% Copyright (c) 2024, Beihang University
+%
+% Author:        Wei Hu
+% Contact:       weihu22@buaa.edu.cn
+%
+% This code is intended for academic and research purposes only.
+%--------------------------------------------------------------------------
+%% Initialize
+clear;
+close all;
+%% Geometry
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% set phantom 1 geometry 
+geo=defaultGeometry('nVoxel',[70;147;70]*2,...
+    'sVoxel',[70;147;70],...
+    'angles',linspace(0, 165, 12),...
+    'nCam',[720;1280],...
+    'dCam',[0.02;0.02],...
+    'fCam',105,...
+    'Zbc',1600,...
+    'Zpc',800);
+[x, y, z] = generateGridCentersofProbeArea(geo);% generate 3D coordinate
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  Check if the image size covers the flow field (AABB-based)
+broaden = 1; %  Extra pixel margin to ensure full coverage of the flow field
+pygeo = pyramidGeometry(geo,'broaden',broaden);
+plotgeometry(geo); % plot bos setup
+% Plot the background to tightly cover the flow field
+for i = 1: 1: geo.numCam 
+    PbkCorner = pygeo.geo.ROICorner(:,4*(i-1)+1: 4*i);
+    Pbkx = [PbkCorner(1,1) PbkCorner(1,2) PbkCorner(1,4) PbkCorner(1,3) PbkCorner(1,1)];
+    Pbky = [PbkCorner(2,1) PbkCorner(2,2) PbkCorner(2,4) PbkCorner(2,3) PbkCorner(2,1)];
+    Pbkz = [PbkCorner(3,1) PbkCorner(3,2) PbkCorner(3,4) PbkCorner(3,3) PbkCorner(3,1)];
+    patch(Pbkz, Pbkx, Pbky, 'red', 'FaceAlpha', 0.5);
+    text(mean(Pbkz),mean(Pbkx),mean(Pbky),num2str(i),'FontSize',22,'FontName','Times New Roman','FontWeight','bold');
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% generate true refractive index n
+load('.\Test_data\Phantom 1\n_GroundTruth.mat');
+n = imresize3(n,0.5);
+[nx, ny, nz] = size(n);
+crop_x = (nx - geo.nVoxel(1))/2;
+crop_y = (ny - geo.nVoxel(2))/2;
+crop_z = (nz - geo.nVoxel(3))/2;
+n_new = n(crop_x+1 : nx-crop_x, crop_y+1 : ny-crop_y, crop_z+1 : nz-crop_z);
+n = n_new;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Compute ambient refractive index from temperature (simplified model)
+T0 = 1100;
+n0 = 296.15*(1.00027-1)./T0+1;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% rescale the refractive index fied
+flow0 = n / n0 - 1; % normalized refractive index
+flow_max = abs(min(flow0(:)));
+flow = flow0 / flow_max; % scaled normalized refractive index
+flow_range = [min(flow(:)) max(flow(:))];% as a prior knowledge
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  Set image noisevariance and camera f-number 
+var_noise = 0.0;%image noise variance
+fnum = 32;% camera f-number 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  Set data output path 
+% Create the directory if it does not exist to avoid file path errors
+pth = ['.\Test_data\Phantom 1\'];
+resolution = [num2str(geo.nVoxel(1)),'x',num2str(geo.nVoxel(2)),'x',num2str(geo.nVoxel(3))];
+%% Generate blur circles and sample rays
+lambda = 0.5e-3;
+dA = geo.fCam./fnum;
+Mp = geo.fd./geo.Zpc;
+M = geo.fd./geo.Zbc;
+di = dA.*[1-1./geo.fCam.*Mp.*(geo.Zpc - geo.fCam)];
+dd = 2.44*geo.fCam./dA.*(M+1)*lambda;
+d = sqrt(di.^2+dd.^2);% Diameter of blur circle on the image plane [mm]
+r = (d/2)./geo.fd.*geo.Zbc;% Radius of the circle of confusion (CoC) projected onto the background [mm]
+dN = 60; % Set number of sampled rays
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+% Given geometry, blur circle radius, ray number, and sampling strategy,
+% output sampled background points within the blur circle.
+blur = rayblur_preset(geo, r, dN, 'random');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plot sampled points inside the blur circle on the background
+i=1; figure; hold on;
+PbkCorner = geo.PbkCorner(:,4*(i-1)+1: 4*i);
+Pbkx = [PbkCorner(1,1) PbkCorner(1,2) PbkCorner(1,4) PbkCorner(1,3) PbkCorner(1,1)];
+Pbky = [PbkCorner(2,1) PbkCorner(2,2) PbkCorner(2,4) PbkCorner(2,3) PbkCorner(2,1)];
+Pbkz = [PbkCorner(3,1) PbkCorner(3,2) PbkCorner(3,4) PbkCorner(3,3) PbkCorner(3,1)];
+patch(Pbkz, Pbkx, Pbky, 'blue', 'FaceAlpha', 0.5);
+XYZ = mean(PbkCorner(:,1:4),2) + blur.delta(:,dN*(i-1)+1: dN*i);
+plot3(XYZ(3,:),XYZ(1,:),XYZ(2,:),'r.','MarkerSize',5);
+%% Compute deflection angles using ray tracing with linear interpolation
+projectionsX_blur = Ax(flow0, geo,'diffD','X','ptype','interpolated','conductmex',1,'blur',blur);
+projectionsY_blur = Ax(flow0, geo,'diffD','Y','ptype','interpolated','conductmex',1,'blur',blur);
+projectionsZ_blur = Ax(flow0, geo,'diffD','Z','ptype','interpolated','conductmex',1,'blur',blur);
+
+projectionsX = Ax(flow0, geo,'diffD','X','ptype','interpolated','conductmex',1);
+projectionsY = Ax(flow0, geo,'diffD','Y','ptype','interpolated','conductmex',1);
+projectionsZ = Ax(flow0, geo,'diffD','Z','ptype','interpolated','conductmex',1);
+%% Convert deflection angles to displacement
+[projectionsUtrue_blur, projectionsVtrue_blur] = epstouv(geo, projectionsX_blur, projectionsY_blur, projectionsZ_blur);
+[projectionsUtrue, projectionsVtrue] = epstouv(geo, projectionsX, projectionsY, projectionsZ);
+
+%% Generate background images
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% generate reference image
+[iref0, density_ob] = background_pattern_IMG_generate('poisson_dot',[max(geo.nCam(2,:)), max(geo.nCam(1,:))]);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% generate distored image
+interp_method='linear';
+[iref, idis] = IMWARP(iref0, projectionsUtrue_blur, projectionsVtrue_blur,geo, interp_method); 
+
+idis_blur = idis;
+plotProj([iref, idis_blur],'colormap','gray','slice',12);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% % Apply noise to the distored image
+rng(1234); 
+idis = imnoise(idis,"gaussian",0,var_noise);
+idis_noise = idis;
+plotProj([idis_blur , idis_noise],'colormap','gray','slice',12);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% estimate image displacement using optical flow method
+% Python-based optical flow implementations are recommended over MATLAB OpenCV 3.4.1,
+% as they produce more robust and stable flow estimates
+if strcmp(pyenv().Status, 'Loaded')
+    disp("Python has been loaded");
+else
+    pyversion('D:\ProgramData\anaconda3\envs\nerfnew\python.exe'); % Configure based on your Python interpreter location
+end
+% If Python is unavailable (pyversion = false), configure OpenCV in MATLAB beforehand
+[projectionsUob, projectionsVob] = imgDisplacementEstimation(iref, idis, geo, 'InitialFlow',[],'PyrScale', 0.5,...
+    'Levels', 5, 'WinSize', 7, 'Iterations',5, 'PolyN',5, 'PolySigma',1.1, 'Gaussian',false,'pyversion',true);
+       
+plotProj([projectionsUtrue, projectionsUtrue_blur, projectionsUob],'colormap','parula','slice',1);%
+plotProj([projectionsVtrue, projectionsVtrue_blur, projectionsVob],'colormap','parula','slice',1);%
+%% calcuate the refractive index projection based on 2D possion equation
+% This module is not directly used in the current pipeline, but is included
+% for completeness of the dataset.
+projectionsNob = calcuProjectionN(projectionsUob, -projectionsVob, pygeo.geo);
+plotProj([projectionsNob],'colormap','parula','slice',1);%
+%% generate unit geometry
+geoori = geo;
+pu = geo.dCam(1,1);
+geo.sVoxel = geo.sVoxel/pu;
+geo.dVoxel = geo.dVoxel/pu;
+geo.Opr = geo.Opr/pu;
+geo.dCam = geo.dCam/pu;
+geo.sCam = geo.sCam/pu;
+geo.fCam = geo.fCam/pu;
+geo.Zbc = geo.Zbc/pu;
+geo.Zpc = geo.Zpc/pu;
+geo.fd =geo.fd/pu;
+geo.TrCam =geo.TrCam/pu;
+geo.Ocr = geo.Ocr/pu;
+
+for i = 1: 1: geo.numCam
+    uroi = 1;
+    vroi = 1;
+    widthroi = geo.nCam(1,i);
+    heightroi = geo.nCam(2,i);
+    v = [vroi,vroi+heightroi-1];
+    u = [uroi,uroi+widthroi-1];
+    [UROI,VROI] = meshgrid(u,v);
+    Zc = repmat(geo.Zbc(i), size(UROI));
+    Zc = Zc(:)';
+    UROI = UROI(:)';
+    VROI = VROI(:)';
+    uv1 = [UROI.* Zc; VROI.* Zc; Zc];
+    bkIXYZ = inv(geo.IMCam(:,3*(i-1)+1: 3*i)) * uv1;
+    bkRXYZ = geo.RrCam(:, 3*(i-1)+1: 3*i)'*(bkIXYZ - geo.TrCam(:,i));
+    geo.PbkCorner(:,4*(i-1)+1: 4*i) = bkRXYZ;
+end
+plotgeometry(geo);
+%% The flow field is scaled so that the maximum side length of the domain is 4,
+% to facilitate the coarse-to-fine sampling strategy used in NeRF.
+scale = floor(4/max(geo.sVoxel)*1e8)/1e8;
+
+geoscale = geo;
+geoscale.sVoxel = geoscale.sVoxel*scale;
+geoscale.dVoxel = geoscale.dVoxel*scale;
+geoscale.Opr = geoscale.Opr*scale;
+geoscale.dCam = geoscale.dCam*scale;
+geoscale.sCam = geoscale.sCam*scale;
+geoscale.fCam = geoscale.fCam*scale;
+geoscale.Zbc = geoscale.Zbc*scale;
+geoscale.Zpc = geoscale.Zpc*scale;
+geoscale.fd = geoscale.fd*scale;
+geoscale.TrCam = geoscale.TrCam*scale;
+geoscale.Ocr = geoscale.Ocr*scale;
+
+for i = 1: 1: geoscale.numCam
+    uroi = 1;
+    vroi = 1;
+    widthroi = geoscale.nCam(1,i);
+    heightroi = geoscale.nCam(2,i);
+    v = [vroi,vroi+heightroi-1];
+    u = [uroi,uroi+widthroi-1];
+    [UROI,VROI] = meshgrid(u,v);
+    Zc = repmat(geoscale.Zbc(i), size(UROI));
+    Zc = Zc(:)';
+    UROI = UROI(:)';
+    VROI = VROI(:)';
+    uv1 = [UROI.* Zc; VROI.* Zc; Zc];
+    bkIXYZ = inv(geoscale.IMCam(:,3*(i-1)+1: 3*i)) * uv1;
+    bkRXYZ = geoscale.RrCam(:, 3*(i-1)+1: 3*i)'*(bkIXYZ - geoscale.TrCam(:,i));
+    geoscale.PbkCorner(:,4*(i-1)+1: 4*i) = bkRXYZ;
+end
+plotgeometry(geoscale);
+%% rescale the projections
+projectionsU = projectionsUob/flow_max;
+projectionsV = projectionsVob/flow_max;
+[projectionsX, projectionsY, projectionsZ] =uvtoeps(geoscale, projectionsU, projectionsV);
+plotProj([projectionsX, projectionsY, projectionsZ],'colormap','parula');%
+projectionsN = projectionsNob/flow_max; 
+%% generate 3D mask
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% The 2D mask is obtained via iterative parameter tuning
+% maskthresh = 0.03; %set mask 2D threshold
+% disksize = 40;%set the disk size
+% se = strel('disk', disksize );
+% mask2D = single(imdilate(imbinarize(mat2gray(projectionsX.^2+projectionsY.^2 +projectionsZ.^2),maskthresh),se));
+% plotProj([mask2D],'colormap','gray','slice',1);
+% % In some cases, tuning only maskThresh and diskSize is not sufficient,
+% % and manual adjustment is required.
+% imgtotal = im2uint16(mat2gray(cat(3, projectionsX, projectionsY, projectionsZ)));
+% img_x = imgtotal(:,:,1:1:geo.numCam);
+% img_y = imgtotal(:,:,geo.numCam+1:1:2*geo.numCam);
+% img_z = imgtotal(:,:,2*geo.numCam+1:1:3*geo.numCam);
+% mask = im2uint16(mask2D);
+% for i = 1: 1: geoscale.numCam
+%     while true
+%         figure(1);clf;
+%         rgb_imgmask = cat(3, img_x(:,:,i).*(mask(:,:,i)/65535),  img_y(:,:,i).*(mask(:,:,i)/65535),  img_z(:,:,i).*(mask(:,:,i)/65535));
+% 
+%         imshow(rgb_imgmask);
+%         h =  drawrectangle('LineWidth',1,'Color','g','Label',['set ROI']);  
+%         round(customWait(h));
+%         roi_mask = createMask(h); 
+%         tmp = mask2D(:,:,i);
+%         tmp(roi_mask) = 1; %set tmp 1 or 0 
+%         mask2D(:,:,i) = tmp;
+% 
+%          choice = input('keep drawing ROI？(y/n): ','s');
+%          if lower(choice) ~= 'y'
+%               break;
+%          end
+%     end
+% end
+% % After tuning, the 2D mask can be saved and the above code block can be disabled.
+% save([pth,'mask2D.mat'],'mask2D');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 3D mask
+load([pth,'mask2D.mat']);
+plotProj([mask2D],'colormap','gray','slice',1);
+maskback0 = Atb(mask2D,geoscale,'ptype','mask','conductmex',1);
+least_common_num = geoscale.numCam-1;
+maskback = zeros(size(maskback0));
+maskback(maskback0<=least_common_num) = 0;
+maskback(maskback0>least_common_num) = 1;
+plotFlowinSlice([maskback],'Dim','Z','colormap','gray');
+plotFlow3D(maskback, x, y, z,'colormap','gray');
+if size(maskback,1)==size(maskback,2) & size(maskback,2)==size(maskback,3)
+    maskbackori = maskback;
+else
+    maskbackori = maskback;
+    max_size = max(size(maskback)); 
+    [~,min_id]=min(size(maskback));
+    if min_id == 1
+        maskback = padarray(maskback, [3 0 0], 'replicate', 'both');
+    elseif min_id == 2
+        maskback = padarray(maskback, [0 3 0], 'replicate', 'both');
+    else
+        maskback = padarray(maskback, [0 0 3], 'replicate', 'both');
+    end
+    maskback = padarray(maskback, floor((max_size-size(maskback))/2), 0, 'both');
+    
+    geopad=defaultGeometry('nVoxel',[max(geoori.nVoxel);max(geoori.nVoxel);max(geoori.nVoxel)],...
+    'sVoxel',[max(geoori.sVoxel);max(geoori.sVoxel);max(geoori.sVoxel)],...
+    'angles',linspace(0, 165, 12),...
+    'nCam',geoori.nCam(:,1),...
+    'dCam',geoori.dCam(:,1),...
+    'fCam',geoori.fCam(1),...
+    'Zbc',geoori.Zbc(1),...
+    'Zpc',geoori.Zpc(1));
+    [xpad, ypad, zpad] = generateGridCentersofProbeArea(geopad);
+    plotFlow3D(maskback, xpad, ypad, zpad,'colormap','gray');
+    plotFlowinSlice([maskback],'Dim','Z','colormap','gray');
+end
+% Remove rays passing through the top/bottom boundaries of the flow field,
+% since they may be influenced by external refractive index variations.
+mask2D = single(logical(mask2D & pygeo.geo.raymask));
+plotProj([mask2D],'colormap','gray');
+
+%% cgls-based reconstruction
+projections = cat(3, projectionsX, projectionsY, projectionsZ);%
+niter=120;
+lambda=8;
+[flowcglsTV0,rescglsTV,errcglsTV]=IRN_TV_CGLS(projections,geoscale,niter,'lambda',lambda,'niter_outer',3,'diffD','xyz','flowmask',maskbackori,'limits',flow_range);%
+% Without range constraints and 3D masks, a simplified conversion is used
+% to approximate the ambient refractive index and obtain the constant term
+% in the inverse solution
+if sum(flowcglsTV0(:).*(1-maskbackori(:)))/sum(1-maskbackori(:))> 0
+    c = 0-sum(flowcglsTV0(:).*(1-maskbackori(:)))/sum(1-maskbackori(:));
+else
+    c = 0;
+end
+flowcglsTV = flowcglsTV0+c;
+sigmas0 = flowcglsTV;
+
+save([pth,resolution,'\','flowcglsTV.mat'],'sigmas0','niter','lambda');
+%% data comparison
+
+Temp_gt = T0 * (n0 - 1) ./ ((maskbackori.*flow*flow_max +1)*n0 - 1);
+Temp_est = T0 * (n0 - 1) ./ ((maskbackori.*sigmas0*flow_max +1)*n0 - 1);
+MRE_TEMP = mean(abs(Temp_gt(:)-Temp_est(:))./Temp_gt(:))
+RMSE_TEMP = sqrt(mse(Temp_gt(:)-Temp_est(:)))
+
+refA = mat2gray(cat(3,Temp_gt, Temp_est));%
+ref = refA(:,:,1:end/2);
+A = refA(:,:,end/2+1:end);
+mseerr = mse(A(:)- ref(:))
+peaksnr = psnr(A,ref)
+ssimval = ssim(A,ref)
+
+surface_temp = 300:350:2000;
+Temp_est_show = Temp_est;
+% Temp_est_show(end/2+1:end,:,:) = NaN;
+plotFlow3D(Temp_est_show, x, y, z,'colormap','hot');
+
+plotFlowinSlice([Temp_gt Temp_est],'Dim','z','colormap','parula','slice',geoscale.nVoxel(3)/2);
+plotFlowinSlice([Temp_gt;Temp_est],'Dim','y','colormap','parula','slice',floor(geoscale.nVoxel(2)/2));
+plotFlowinSlice([Temp_gt Temp_est],'Dim','x','colormap','parula','slice',geoscale.nVoxel(1)/2);
+%% Prepare data for neural implicit reconstruction in Python
+% clear nerfdata
+nerfdata.camera_angle_x = 2*atan(geo.sCam(1,1)/2/geo.fCam(1));
+nerfdata.camera_angle_y = 2*atan(geo.sCam(2,1)/2/geo.fCam(1));
+nerfdata.fl_x = geo.IMCam(1,1);
+nerfdata.fl_y = geo.IMCam(2,2);
+nerfdata.k1 = 0;
+nerfdata.k2 = 0;
+nerfdata.p1 = 0;
+nerfdata.p2 = 0;
+nerfdata.cx = geo.IMCam(1,3);
+nerfdata.cy = geo.IMCam(2,3);
+nerfdata.w = geo.nCam(1,1);
+nerfdata.h = geo.nCam(2,1);
+nerfdata.aabb_scale = 1;
+nerfdata.image_min = min([projectionsX(:);projectionsY(:);projectionsZ(:)]);
+nerfdata.image_max = max([projectionsX(:);projectionsY(:);projectionsZ(:)]);
+
+pth_total = [pth,resolution,'\'];
+save([pth_total,'3Dmask.mat'], 'maskback');
+imgtotal = cat(3, projectionsX, projectionsY, projectionsZ, projectionsN);
+imgtotal = (imgtotal - nerfdata.image_min)./(nerfdata.image_max - nerfdata.image_min);
+imgtotal = im2uint16(imgtotal);
+img_x = imgtotal(:,:,1:1:geo.numCam);
+img_y = imgtotal(:,:,geo.numCam+1:1:2*geo.numCam);
+img_z = imgtotal(:,:,2*geo.numCam+1:1:3*geo.numCam);
+img_n = imgtotal(:,:,3*geo.numCam+1:1:4*geo.numCam);
+mask = im2uint16(mask2D);
+%% Output training data (ensure 'train' folder exists under path)
+for i = 1: 1: geo.numCam
+    nerfdata.frames(i).file_path = ['train\img',num2str(i,'%04d'),'.png'];
+    rgb_img = cat(3, img_x(:,:,i),  img_y(:,:,i),  img_z(:,:,i));
+    imwrite(rgb_img, [pth_total, nerfdata.frames(i).file_path]);
+    nerfdata.frames(i).imgmask_file_path = ['train\img_mask',num2str(i,'%04d'),'.png'];
+    rgb_imgmask = cat(3, img_x(:,:,i).*(mask(:,:,i)/65535),  img_y(:,:,i).*(mask(:,:,i)/65535),  img_z(:,:,i).*(mask(:,:,i)/65535));
+    imwrite(rgb_imgmask, [pth_total, nerfdata.frames(i).imgmask_file_path]);
+
+    nerfdata.frames(i).mask_file_path = ['train\mask',num2str(i,'%04d'),'.png'];
+    mask_img = cat(3, mask(:,:,i), mask(:,:,i), mask(:,:,i));
+    imwrite(mask_img, [pth_total, nerfdata.frames(i).mask_file_path]);
+    nerfdata.frames(i).RIintegral_file_path = ['train\RIintergral',num2str(i,'%04d'),'.png'];
+    n_img = cat(3, img_n(:,:,i), img_n(:,:,i), img_n(:,:,i));
+    imwrite(n_img, [pth_total, nerfdata.frames(i).RIintegral_file_path]);
+
+    img =  cat(3, img_n(:,:,i),  img_n(:,:,i),  img_n(:,:,i));
+    nerfdata.frames(i).sharpness = var(double(cv.Laplacian(img)),1,'all');
+    R = geo.RrCam(:, 3*(i-1)+1: 3*i)';
+    T = - geo.RrCam(:, 3*(i-1)+1: 3*i)'*geo.TrCam(:, i);
+    R_opencv = -R;
+    t_opencv = T;
+    nerfdata.frames(i).transform_matrix = [R_opencv t_opencv; 0 0 0 1] ;
+
+    nerfdata.frames(i).UVROI = pygeo.geo.UVROI(:,i);
+end
+
+% output JSON
+jsonString = jsonencode(nerfdata);
+jsonString = prettyPrintJSON(jsonString);
+fileName = [pth_total,'transforms_train.json'];
+
+fid = fopen(fileName, 'w');  
+if fid == -1
+    error('Cannot create JSON file');
+end
+
+fprintf(fid, '%s', jsonString);  
+fclose(fid);  
+
+fprintf('JSON file has been generated: %s\n', fileName);
+%% Output validation data (ensure 'val' folder exists under path)
+% Ensure the number of validation samples is greater than 2
+% The data in 'val' does not affect training
+for i = 1: 1: 2
+    nerfdata.frames(i).file_path = ['val\img',num2str(i,'%04d'),'.png'];
+    rgb_img = cat(3, img_x(:,:,i),  img_y(:,:,i),  img_z(:,:,i));
+    imwrite(rgb_img, [pth_total, nerfdata.frames(i).file_path]);
+    nerfdata.frames(i).imgmask_file_path = ['val\img_mask',num2str(i,'%04d'),'.png'];
+    rgb_imgmask = cat(3, img_x(:,:,i).*(mask(:,:,i)/65535),  img_y(:,:,i).*(mask(:,:,i)/65535),  img_z(:,:,i).*(mask(:,:,i)/65535));
+    imwrite(rgb_imgmask, [pth_total, nerfdata.frames(i).imgmask_file_path]);
+
+    nerfdata.frames(i).mask_file_path = ['val\mask',num2str(i,'%04d'),'.png'];
+    mask_img = cat(3, mask(:,:,i), mask(:,:,i), mask(:,:,i));
+    imwrite(mask_img, [pth_total, nerfdata.frames(i).mask_file_path]);
+    nerfdata.frames(i).RIintegral_file_path = ['val\RIintergral',num2str(i,'%04d'),'.png'];
+    n_img = cat(3, img_n(:,:,i), img_n(:,:,i), img_n(:,:,i));
+    imwrite(n_img, [pth_total, nerfdata.frames(i).RIintegral_file_path]);
+
+    img =  cat(3, img_n(:,:,i),  img_n(:,:,i),  img_n(:,:,i));
+    nerfdata.frames(i).sharpness = var(double(cv.Laplacian(img)),1,'all');
+    R = geo.RrCam(:, 3*(i-1)+1: 3*i)';
+    T = - geo.RrCam(:, 3*(i-1)+1: 3*i)'*geo.TrCam(:, i);
+    R_opencv = -R;
+    t_opencv = T;
+    nerfdata.frames(i).transform_matrix = [R_opencv t_opencv; 0 0 0 1] ;
+
+    nerfdata.frames(i).UVROI = pygeo.geo.UVROI(:,i);
+end
+
+% output JSON
+jsonString = jsonencode(nerfdata);
+jsonString = prettyPrintJSON(jsonString);
+fileName = [pth_total,'transforms_val.json'];
+
+fid = fopen(fileName, 'w');  
+if fid == -1
+    error('Cannot create JSON file');
+end
+
+fprintf(fid, '%s', jsonString);  
+fclose(fid);  
+
+fprintf('JSON file has been generated: %s\n', fileName);
+
+%% Output test data (ensure 'test' folder exists under path)
+% Ensure the number of test samples is greater than 2
+% The data in 'test' does not affect training
+
+for i = 1: 1: 2
+    nerfdata.frames(i).file_path = ['test\img',num2str(i,'%04d'),'.png'];
+    rgb_img = cat(3, img_x(:,:,i),  img_y(:,:,i),  img_z(:,:,i));
+    imwrite(rgb_img, [pth_total, nerfdata.frames(i).file_path]);
+    nerfdata.frames(i).imgmask_file_path = ['test\img_mask',num2str(i,'%04d'),'.png'];
+    rgb_imgmask = cat(3, img_x(:,:,i).*(mask(:,:,i)/65535),  img_y(:,:,i).*(mask(:,:,i)/65535),  img_z(:,:,i).*(mask(:,:,i)/65535));
+    imwrite(rgb_imgmask, [pth_total, nerfdata.frames(i).imgmask_file_path]);
+
+    nerfdata.frames(i).mask_file_path = ['test\mask',num2str(i,'%04d'),'.png'];
+    mask_img = cat(3, mask(:,:,i), mask(:,:,i), mask(:,:,i));
+    imwrite(mask_img, [pth_total, nerfdata.frames(i).mask_file_path]);
+    nerfdata.frames(i).RIintegral_file_path = ['test\RIintergral',num2str(i,'%04d'),'.png'];
+    n_img = cat(3, img_n(:,:,i), img_n(:,:,i), img_n(:,:,i));
+    imwrite(n_img, [pth_total, nerfdata.frames(i).RIintegral_file_path]);
+
+    img =  cat(3, img_n(:,:,i),  img_n(:,:,i),  img_n(:,:,i));
+    nerfdata.frames(i).sharpness = var(double(cv.Laplacian(img)),1,'all');
+    R = geo.RrCam(:, 3*(i-1)+1: 3*i)';
+    T = - geo.RrCam(:, 3*(i-1)+1: 3*i)'*geo.TrCam(:, i);
+    R_opencv = -R;
+    t_opencv = T;
+    nerfdata.frames(i).transform_matrix = [R_opencv t_opencv; 0 0 0 1] ;
+
+    nerfdata.frames(i).UVROI = pygeo.geo.UVROI(:,i);
+end
+
+% output JSON
+jsonString = jsonencode(nerfdata);
+jsonString = prettyPrintJSON(jsonString);
+fileName = [pth_total,'transforms_test.json'];
+
+fid = fopen(fileName, 'w');  
+if fid == -1
+    error('Cannot create JSON file');
+end
+
+fprintf(fid, '%s', jsonString);  
+fclose(fid);  
+
+fprintf('JSON file has been generated: %s\n', fileName);
+%% print parameter value for python
+disp(['scale = ',num2str(scale), newline, ...
+    'ROIsize = ', '[ ', num2str(geoscale.sVoxel(1)/2), ',', num2str(geoscale.sVoxel(2)/2),',',  num2str(geoscale.sVoxel(3)/2),  ' ]',newline...
+    ])
+%%
+
+function prettyJSON = prettyPrintJSON(json)
+    prettyJSON = strrep(json, ',', sprintf(',\n'));
+    prettyJSON = strrep(prettyJSON, '{', sprintf('{\n'));
+    prettyJSON = strrep(prettyJSON, '}', sprintf('\n}'));
+end
+

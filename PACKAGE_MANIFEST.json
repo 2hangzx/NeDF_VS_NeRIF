@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "package_name": "NIR-BOS formal experiment package",
+  "created_on": "2026-08-25",
+  "source_stage": "04_training_ready",
+  "source_stage_checksums_sha256": "5761387f453db94dd42a6b82c9062bd1e7ef542cc455e054a5ffe68199f19443",
+  "validated_profile": "strict_control_v1",
+  "initial_content": {
+    "transfer_content_files_before_checksum_files": 337,
+    "transfer_content_size_bytes_before_checksum_files": 233308155,
+    "matlab_files": 154,
+    "common_files": 43,
+    "baseline_tree_files": 92,
+    "gradient_tree_files": 31,
+    "experiment_control_files": 8,
+    "docs_files": 4
+  },
+  "portable_layout": true,
+  "central_batch_root": "experiments/<batch-id>",
+  "intentional_formal_copy_changes": [
+    "both main_BOS.py files obtain only workspace from NIR_BOS_BATCH_ID",
+    "training and network parameters remain hardcoded",
+    "training readiness validation resolves centralized batch workspaces",
+    "experiment_control manages create/preflight/train/resume/extend/compare/status lifecycle",
+    "resume restores only full checkpoints from the same batch and route",
+    "extend loads a completed parent-route checkpoint into a new child batch and restarts cosine scheduling over the remaining declared budget",
+    "training readiness is validated against each batch declared_profile while training parameters remain hardcoded"
+  ],
+  "included_roots": [
+    "MATLAB",
+    "Common",
+    "PYTHON/NIR-BOS",
+    "claudedo/gradient_output",
+    "experiment_control",
+    "docs",
+    "experiments"
+  ],
+  "excluded_content": [
+    "historical result directories and checkpoints",
+    "development-stage snapshots",
+    "Python __pycache__, build, build_temp, pyc, pyd, pdb and so artifacts",
+    "standalone 2.2 GiB C++ project not referenced by the MATLAB-to-Python flow"
+  ]
+}
