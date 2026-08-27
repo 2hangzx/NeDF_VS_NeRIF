@@ -2,8 +2,8 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
+#include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <torch/extension.h>
 
 #include <cstdio>
 #include <stdint.h>

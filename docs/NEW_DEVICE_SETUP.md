@@ -68,6 +68,19 @@ python setup.py build_ext --inplace
 两个路线拥有各自的扩展目录，需要分别确认。编译生成的 `.pyd` 属于目标设备，
 不需要回写到开发仓或再次跨设备搬运。
 
+### Windows 上的 `compiled_autograd.h` / C2872
+
+若第一次训练在 JIT 编译 `raymarching.cu` 时出现
+`compiled_autograd.h(...): error C2872: "std": 不明确的符号`，真正失败的是 CUDA
+扩展编译；此前大量“注意: 包含文件”和 unused-variable 信息不是根因。CUDA 实现
+文件只能引用 ATen 张量接口，Python 绑定头 `torch/extension.h` 应保留在
+`bindings.cpp`，不能再由 `raymarching.cu` 引入。
+
+当前包的 baseline 和 gradient 均已按此方式分离，并在 PyTorch 2.11.0+cu128、
+CUDA 12.8、MSVC 14.44、RTX 5060 Ti 上通过独立编译、动态加载和 `morton3D`
+CUDA 调用验证。该记录仅表示 raymarching 扩展兼容性已验证；正式实验仍应执行
+本指南后续的批次门禁与短训练验收。
+
 ## 5. MATLAB 初始化
 
 从 MATLAB 中把工作目录切换到本包的 `MATLAB/`：

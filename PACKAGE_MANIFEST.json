@@ -26,6 +26,7 @@
     "extend loads a completed parent-route checkpoint into a new child batch and restarts cosine scheduling over the remaining declared budget",
     "training readiness is validated against each batch declared_profile while training parameters remain hardcoded",
     "network capacity has no global minimum; profiles declare layer count and width while parameter counts are calculated for reporting only",
+    "raymarching CUDA sources use ATen-only headers while Python bindings remain isolated in bindings.cpp for modern Windows toolchain compatibility",
     "Git repository metadata is intentionally excluded from reproducibility checksums"
   ],
   "included_roots": [
